@@ -1,0 +1,360 @@
+---
+title: "Paper_figures_Axin2_suture"
+subtitle: "Fig. 2A, Fig. S7-9, Fig. 3A, B, D, Fig. S11, Fig. S12"
+author: "Zhirui Jiang"
+date: '2023-06-22'
+output: 
+  html_document: 
+    fig_width: 12
+    fig_height: 9
+editor_options: 
+  chunk_output_type: console
+---
+# Load library
+```{r}
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(tidyverse)
+library(data.table)
+library(magrittr)
+library(patchwork)
+library(ComplexHeatmap)
+```
+
+# load data
+```{r}
+Axin2_scRNAseq.data1<- Read10X(data.dir = "scRNA-seq Axin2 positive cell suture-first/outs/filtered_feature_bc_matrix/")
+Axin2_scRNAseq.data2<- Read10X(data.dir = "scRNA-seq Axin2 positive cell suture-second/outs/filtered_feature_bc_matrix/")
+
+Axin2.batch1<-CreateSeuratObject(counts = Axin2_scRNAseq.data1, project = "Axin2.batch1", min.cells = 3, min.features = 200)
+Axin2.batch2<-CreateSeuratObject(counts = Axin2_scRNAseq.data2, project = "Axin2.batch2", min.cells = 3, min.features = 200)
+
+
+head(x=Axin2.batch1@meta.data,5)
+head(x=Axin2.batch2@meta.data,5)
+
+
+suture.list<-list(Axin2.batch1,Axin2.batch2)
+names(suture.list)<-c("batch1","batch2")
+
+#Normalization of the data
+#Identify variable features
+suture.list<- lapply(X= suture.list, FUN=function(x){
+x<-NormalizeData(object = x, normalization.method = "LogNormalize", scale.factor = 1e4)
+x<-FindVariableFeatures(x,selection.method = "vst", nfeatures = 2000)
+})
+
+##Perform integration
+Axin2.anchors<-FindIntegrationAnchors(object.list = suture.list,dims = 1:20)
+Axin2.combined <- IntegrateData(anchorset = Axin2.anchors, dims = 1:20)
+
+#Visualize QC Metrics as a violin plot
+VlnPlot(object = Axin2.combined, features = c("nFeature_RNA", "nCount_RNA"), ncol=2, pt.size = 0)
+plot1<- FeatureScatter(object = Axin2.combined, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1
+
+##Perform an integrated analysis
+DefaultAssay(Axin2.combined)<-"integrated"
+
+#Scaling the data
+#Shifts the expression of each gene, so that the mean expression across cells is 0 Scales the expression of each gene, so that the variance across cells is 1 The results of this are stored in pbmc[[“RNA”]]@scale.data
+all.genes<-rownames(x=Axin2.combined)
+class(all.genes)
+head(all.genes)
+Axin2.combined <- ScaleData(object = Axin2.combined, features = all.genes, verbose = FALSE)
+Axin2.combined <- FindVariableFeatures(object = Axin2.combined)
+Axin2.combined <- RunPCA(object = Axin2.combined, upcs = 30, features = VariableFeatures(object=Axin2.combined), verbose = FALSE)
+
+##Determine the dimentionality of the dataset
+ElbowPlot(object = Axin2.combined)
+
+# t-SNE
+Axin2.combined <- RunTSNE(Axin2.combined, reduction = "pca", dims = 1:20)
+DimPlot(Axin2.combined,reduction="tsne",split.by = "orig.ident", pt.size = 0.5)
+VlnPlot(object = Axin2.combined, features = c("nFeature_RNA", "nCount_RNA"), ncol=2, pt.size = 0)
+
+# UMAP
+Axin2.combined <- RunUMAP(Axin2.combined, reduction = "pca", dims = 1:20)
+DimPlot(Axin2.combined,reduction="umap",split.by = "orig.ident", pt.size = 0.5)
+VlnPlot(object = Axin2.combined, features = c("nFeature_RNA", "nCount_RNA"), ncol=2, pt.size = 0)
+
+saveRDS(Axin2.combined, file = "Axin2_combined_pre_clustering.rds")
+
+# Clustering
+Axin2.combined <- FindNeighbors(Axin2.combined, reduction = "pca", dims = 1:20)
+Axin2.combined <- FindClusters(Axin2.combined, resolution = 0.1)
+
+saveRDS(Axin2.combined, file = "Axin2_combined.rds")
+```
+
+# Figure S7
+```{r}
+# Fig. S7A
+VlnPlot(object = Axin2.combined, features = c("nFeature_RNA", "nCount_RNA","percent.mt"), ncol=3, pt.size = 0)
+plot1<- FeatureScatter(object = Axin2.combined, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1
+
+# Fig. S7B
+all.genes<-rownames(x=Axin2.combined)
+class(all.genes)
+head(all.genes)
+Axin2.combined <- ScaleData(object = Axin2.combined, features = all.genes, verbose = FALSE)
+Axin2.combined <- FindVariableFeatures(object = Axin2.combined)
+Axin2.combined <- RunPCA(object = Axin2.combined, upcs = 30, features = VariableFeatures(object=Axin2.combined), verbose = FALSE)
+DefaultAssay(Axin2.combined)<-"integrated"
+Axin2.combined <- RunUMAP(Axin2.combined, reduction = "pca", dims = 1:20)
+Axin2.combined <- FindNeighbors(Axin2.combined, reduction = "pca", dims = 1:20)
+Axin2.combined <- FindClusters(Axin2.combined, resolution = 0.1)
+DimPlot(Axin2.combined,reduction="umap",split.by = "orig.ident")
+DimPlot(Axin2.combined,reduction = "umap",group.by = "orig.ident", pt.size = 0.6)
+
+# Fig. S7C
+DefaultAssay(Axin2.combined) <- "RNA"
+all_markers <-FindAllMarkers(Axin2.combined, 
+                             min.pct =  0.25, 
+                             min.diff.pct = 0.25)
+write.csv(all_markers, "all_markers_genes_res0.1.csv", quote = F)
+all.genes <- rownames(Axin2.combined)
+Axin2.combined <- ScaleData(Axin2.combined, features = all.genes)
+DimHeatmap(Axin2.combined, dims = 1:3, cells = 500, balanced = TRUE)
+all_markers %>%  
+  group_by(cluster) %>% 
+  top_n(n = 20, wt = avg_log2FC) -> top20
+pdf("heatmap_20.pdf", width=6, height=12)
+print(DoHeatmap(Axin2.combined, features = top20$gene) + NoLegend())
+dev.off()
+```
+
+# Figure 2: Transcriptome profiling identifies skeletogenic population in mouse Axin2+ suture mesenchyme.
+```{r}
+# Figure 2A
+new.cluster.ids<- c("NEUT1","NEUT2","MP","MONO","SC","MC")
+names(x=new.cluster.ids) <-levels(x=Axin2.combined)
+Axin2.combined<-RenameIdents(object = Axin2.combined,new.cluster.ids)
+DimPlot(object = Axin2.combined,reduction = 'umap',label = TRUE,label.size = 4,pt.size = 0.5)+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+
+# Figure 2B
+DefaultAssay(Axin2.combined) <- "RNA"
+features <- c("Stfa2l1","Ptprc","Itgam","Ly6g","S100a8","Ms4a3","Mki67","Stmn1", "Elane","Mpo","Ccr2","Cd68","S100a4","Fn1","Ctss","Pth1r","Twist1","Dcn","Bglap","Col1a2","Fcer1a","Mcpt8","Gata2","Cd69","Ms4a2")
+DotPlot(Axin2.combined, features = features) + RotatedAxis()+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+```
+
+# Figure 2: Enriched Lrig3 expression in the suture mesenchyme
+```{r}
+# Figure 2A
+VlnPlot(object = Axin2.combined, features = c("Bmpr1a"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.combined, features = c("Lrig3"),   ncol=1, log = TRUE, pt.size = 0)
+# Figure 2B
+FeatureScatter(object = Axin2.combined, feature1 = 'Bmpr1a', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14, face="bold"),
+        axis.title=element_text(size=20,face="bold"))
+```
+
+# Figure S8: Violin plots of craniosynostosis genes in different cell types of Axin2+ mouse suture mesenchyme cells. 
+```{r}
+## remove the x-axis text and tick
+## plot.margin to adjust the white space between each plot.
+## ... pass any arguments to VlnPlot in Seurat
+modify_vlnplot<- function(obj, 
+                          feature, 
+                          pt.size = 0, 
+                          plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                          ...) {
+  p<- VlnPlot(obj, features = feature, pt.size = pt.size, ... )  + 
+    xlab("") + ylab(feature) + ggtitle("") + 
+    theme(legend.position = "none",
+          plot.title = element_blank(),
+          axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), 
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(size = rel(1), angle = 0), 
+          axis.text.y = element_text(size = rel(1)),
+          plot.margin = plot.margin ) 
+  return(p)
+}
+
+## extract the max value of the y axis
+extract_max<- function(p){
+  ymax<- max(ggplot_build(p)$layout$panel_scales_y[[1]]$range$range)
+  return(ceiling(ymax))
+}
+
+
+## main function
+StackedVlnPlot<- function(obj, features,
+                          pt.size = 0, 
+                          plot.margin = unit(c(-0.75, 0, -0.75, 0), "cm"),
+                          ...) {
+  
+  plot_list<- purrr::map(features, function(x) modify_vlnplot(obj = obj,feature = x, ...))
+  
+  # Add back x-axis title to bottom plot. patchwork is going to support this?
+  plot_list[[length(plot_list)]]<- plot_list[[length(plot_list)]] +
+    theme(axis.text.x=element_text(), axis.ticks.x = element_line())
+  
+  # change the y-axis tick to only max value 
+  ymaxs<- purrr::map_dbl(plot_list, extract_max)
+  plot_list<- purrr::map2(plot_list, ymaxs, function(x,y) x + 
+                            scale_y_continuous(breaks = c(y)) + 
+                            expand_limits(y = y))
+  
+  p<- patchwork::wrap_plots(plotlist = plot_list, ncol = 1)
+  return(p)
+}
+
+DefaultAssay(Axin2.combined) <- "RNA"
+
+features1 <- c("Ptprd","Fgfr1","Nfix","Runx2","Msx1","Tcf12","Sec24d","Ahdc1","Twist1","Fgfr2","Zic1","Il6st","Nfia","Crtap","Tgfbr2")
+features2 <- c("Six1","Fto","Smo","Alpl","Efnb1","Spry1","Ift43","Kat6b","Bmp2","Dvl3","Jag1","Rasal2","Snai1","Smad6","Alx4")
+features3 <- c("Bmper","Abcc9","Cyp26b1","Fgf9","Sox11","Fgfr3","Masp1","Ntrk2","Frem1","Six2","Spry4","Efna4","Wdr19")
+features4 <- c("Ifrd1","Flna","Psmc2","Hnrnpk","B3gat3","Igf1r","Braf","Psmc5","Rspry1","Ptpn11","Foxo1","Kat6a")
+features5 <- c("P4hb","Kansl1","Ppp1cb","Smc1a","Med13l","Slc25a24","Shoc2","Huwe1","Notch2","Axin1","Cdc45","Notch1","Arap3")
+features6 <- c("Msx2","Adamtsl4","Dph1","Glis3","Ift140","Chst3","Bbs9","Rab23","Acvrl1","Acvr2a","Smurf1","Adck1","Shc4","Nphp4","Cd96","Erf","Sox6")
+StackedVlnPlot(obj = Axin2.combined, features = features1)
+StackedVlnPlot(obj = Axin2.combined, features = features2)
+StackedVlnPlot(obj = Axin2.combined, features = features3)
+StackedVlnPlot(obj = Axin2.combined, features = features4)
+StackedVlnPlot(obj = Axin2.combined, features = features5)
+StackedVlnPlot(obj = Axin2.combined, features = features6)
+```
+
+# Figure S9
+```{r}
+featuresBMP <- c("Sfrp2","Bambi","Fstl1","Smad4","Bmp2","Bmp3","Bmp4","Bmp7","Bmpr1a","Bmpr2",
+                 "Smad7","Smurf1",
+                 "Gdf10","Tcf7l2","Smad3","Tgfbr3","Twsg1","Nfia","Pdcd4","Hes1",
+                 "Tgfb3","Dlx5","Spg20","Bmp6","Bmp8a","Acvr1","Acvr2a","Acvr2b","Bmp5")
+StackedVlnPlot(obj = Axin2.combined, features = featuresBMP)
+```
+
+# Figure 4 and S14: Gene-gene correlations among different cell types of Axin2+ mouse suture mesenchyme showed by scatter plots with Pearson correlation index and p-value.    
+```{r}
+FeatureScatter(object = Axin2.combined, feature1 = 'Acvr2a', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+FeatureScatter(object = Axin2.combined, feature1 = 'Bambi', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+FeatureScatter(object = Axin2.combined, feature1 = 'Smad7', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+FeatureScatter(object = Axin2.combined, feature1 = 'Smad4', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+FeatureScatter(object = Axin2.combined, feature1 = 'Acvr1', feature2 = 'Lrig3') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+FeatureScatter(object = Axin2.combined, feature1 = 'Bmpr1a', feature2 = 'Msx1') +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=20,face="bold"))
+```
+
+# Figure 3A, B, D: Characterization of the skeletogenic cell lineage in mouse Axin2+ suture mesenchyme identified suture stem cells. 
+```{r}
+Axin2.sub<-subset(x = Axin2.combined, idents = c("NEUT1","NEUT2","MONO","MP","MC"), invert = TRUE)
+DefaultAssay(Axin2.sub)<-"integrated"
+Axin2.sub <- ScaleData(Axin2.sub, verbose = FALSE)
+Axin2.sub <- RunPCA(Axin2.sub, npcs = 30, verbose = FALSE)
+Axin2.sub <- RunUMAP(Axin2.sub, reduction = "pca", dims = 1:20)
+Axin2.sub <- FindNeighbors(Axin2.sub, reduction = "pca", dims = 1:20)
+Axin2.sub <- FindClusters(Axin2.sub, resolution = 0.4)
+DimPlot(Axin2.sub,reduction="umap",split.by = "orig.ident", label.size=6, pt.size = 1.0)
+new.cluster.ids<- c("SuSC","OB","COP","OP") 
+names(x=new.cluster.ids) <-levels(x=Axin2.sub)
+Axin2.sub<-RenameIdents(object = Axin2.sub,new.cluster.ids)
+DimPlot(object = Axin2.sub, reduction = 'umap',label = TRUE, pt.size = 1, label.size = 6)+ NoLegend()+FontSize(x.text = 15,y.text = 15,x.title=20,y.title = 20)
+DefaultAssay(Axin2.sub) <- "RNA"
+features <- c("Msx1","Thy1","Msx2","Cd14","Ptprc","Mmp9","Sparc","Col1a1","Bglap","Spp1","Ibsp","Mmp13")
+DotPlot(Axin2.sub, features = features) + RotatedAxis()+
+  theme(axis.text=element_text(size=20),
+        axis.title=element_text(size=20))
+VlnPlot(object = Axin2.sub, features = c("Msx1"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Msx2"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Acvrl1"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Bmper"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Rab23"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Thy1"),   ncol=1, log = TRUE, pt.size = 0)
+VlnPlot(object = Axin2.sub, features = c("Lrig3"),   ncol=1, log = TRUE, pt.size = 0)
+```
+
+# Figures S11: Reculstering of skeletogenic cell lineage in Axin2-expressing suture cells.
+```{r}
+VlnPlot(object = Axin2.sub, features = c("Msx1"), ncol=1,pt.size = 0.5)+
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Thy1"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Acvrl1"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Bmper"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Rab23"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Lrig3"), ncol=1,pt.size = 0)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Ptprc"), ncol=1,pt.size = 0)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Mmp9"), ncol=1,pt.size = 0)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Mpo"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Elane"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Cd14"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Runx2"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Col1a1"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Col1a2"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Alpl"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Bglap"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Sparc"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Sp7"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Ibsp"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Mmp13"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Spp1"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+VlnPlot(object = Axin2.sub, features = c("Wnt4"), ncol=1,pt.size = 0.5)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+```
+
+# Figure S12: Expression of cell surface markers in the subsets of SC.
+```{r}
+featuresCellSurfaceSuSC <- c("Ptn","Tnn","Apoe","Gpc3","Fzd1","Sulf2","Egfr","Thy1","Epha4","Cdon","Ramp2","Lpl","Icam1","Thbd","Lrig3","Itga8","Nid2","Bace2","Pxdn","Scube2","Sema6c")
+StackedVlnPlot(obj = Axin2.sub, features = CellSurfaceSuSC) + 
+  theme(axis.text=element_text(size=18),axis.title=element_text(size=20))
+```
+

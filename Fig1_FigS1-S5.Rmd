@@ -1,0 +1,157 @@
+---
+title: "R script linked to secondary analysis Figures"
+subtitle: "Fig. 1A-E, Fig. S1-5"
+author: "Zhirui Jiang"
+date: '2023-06-22'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#Setup the Seurat object 
+```{r}
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(tidyverse)
+library(data.table)
+library(magrittr)
+```
+
+# load data
+```{r}
+Coronal.data<- read.table("scWCP10_S190_matrix.count")
+Lambdoid.data <-read.table("scWLP10_S191_matrix.count")
+```
+
+
+```{r}
+Coronal<-CreateSeuratObject(counts = Coronal.data, project = "Coronal", min.cells = 3, min.features = 200)
+Lambdoid<-CreateSeuratObject(counts = Lambdoid.data, project = "Lambdoid", min.cells = 3, min.features = 200)
+suture.list<-list(Coronal,Lambdoid)
+names(suture.list)<-c("coronal","lambdoid")
+```
+
+```{r}
+suture.list<- lapply(X= suture.list, FUN=function(x){
+x<-NormalizeData(x)
+x<-FindVariableFeatures(x,selection.method = "vst", nfeatures = 2000)
+})
+```
+
+##Perform integration
+```{r}
+suture.anchors<-FindIntegrationAnchors(object.list = suture.list,dims = 1:20)
+suture.combined <- IntegrateData(anchorset = suture.anchors, dims = 1:20)
+
+```
+
+##Perform an integrated analysis
+```{r}
+DefaultAssay(suture.combined)<-"integrated"
+suture.combined <- ScaleData(suture.combined, verbose = FALSE)
+suture.combined <- RunPCA(suture.combined, npcs = 30, verbose = FALSE)
+suture.combined <- RunUMAP(suture.combined, reduction = "pca", dims = 1:20)
+```
+
+## Figure S1A
+```{r}
+suture.combined <- RunTSNE(suture.combined, reduction = "pca", dims = 1:20)
+suture.combined <- FindNeighbors(suture.combined, reduction = "pca", dims = 1:20)
+suture.combined <- FindClusters(suture.combined, resolution = 0.1)
+DimPlot(suture.combined,reduction="tsne", label = TRUE, pt.size = 1.0)
+```
+
+## Figure S1B
+
+```{r}
+all_markers <- FindAllMarkers(object = suture.combined, 
+                          only.pos = TRUE,
+                          logfc.threshold = 0.25)  
+DefaultAssay(suture.combined) <- "RNA"
+all.genes <- rownames(suture.combined)
+suture.combined <- ScaleData(suture.combined, features = all.genes)
+all_markers %>%
+  group_by(cluster) %>%
+  top_n(n = 5, wt = avg_log2FC) -> top5
+DoHeatmap(suture.combined, features = top5$gene) + NoLegend()
+```
+
+## Figure S1C: Feature plot of cells that expresses Runx2, Mcam and Rac2. 
+
+```{r}
+FeaturePlot(suture.combined, feature=c("Runx2"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Mcam"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Rac2"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+```
+
+## Figure S2, S3 and S4
+```{r}
+suture.combined<-suture.combined
+new.cluster.ids<- c("OB","CH","MC","HC1","PMC","HC3","HC2","VC2","VC1","PCH") 
+names(x=new.cluster.ids) <-levels(x=suture.combined)
+suture.combined<-RenameIdents(object = suture.combined,new.cluster.ids)
+DimPlot(object = suture.combined, reduction = 'tsne',label = TRUE, pt.size = 1, label.size = 6)+ NoLegend()+FontSize(x.text = 15,y.text = 15,x.title=24,y.title = 24)
+FeaturePlot(suture.combined, feature=c("Sp7","Spp1","Bglap"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Sox9","Col2a1","Acan"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Twist1","Erg","Grem1"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Mki67","Pcna","Top2a"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Ccr2","Cd14","Cd68","Csf1r","Cx3cr1","Itgax"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Acp5","Tnfrsf11a","Oscar","Ctsk", "Ocstamp", "Atp6v0d2"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Cd3d","Cd19","Itga2","Cd69","Il2ra"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Sell","Ly6g","Fcgr3","Itgam"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Pecam1","Ecscr","Cdh5","Kdr","Flt1"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Rgs5","Myh11","Des","Cd248"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+FeaturePlot(suture.combined, feature=c("Acta2","Cnn1","Tagln","Cald1","Myl9"),reduction = "tsne",max.cutoff = 5,min.cutoff = 0)
+```
+
+## Figure 1: Characterization of Runx2+, Rac2+ & Mcam+ skeletal lineages from mouse suture mesenchyme. 
+
+```{r}
+# Figure 7A:
+DimPlot(object = suture.combined, reduction = 'tsne',label = TRUE, pt.size = 1, label.size = 6)+ NoLegend()+FontSize(x.text = 15,y.text = 15,x.title=24,y.title = 24)
+# Figure 7B
+features <- c("Ccr2","Cd14","Cd68","Csf1r","Cx3cr1","Acp5","Tnfrsf11a","Atp6v0d2","Rgs5","Myh11","Des","Cd248","Acta2","Tagln","Cald1","Myl9","Pecam1","Ecscr","Cdh5","Kdr","Flt1","Cd3d","Sell","Ly6g","Cd19","Cd69","Sox9","Col2a1","Acan","Twist1","Erg","Grem1","Sp7","Spp1","Bglap","Mki67","Pcna","Top2a")
+DotPlot(suture.combined, features = features, cluster.idents = TRUE) + RotatedAxis()
+# Figure 7C
+MCOB<-subset(x = suture.combined, idents = c("CH","PCH","HC1","HC2","HC3","VC1","VC2"), invert = TRUE)
+DefaultAssay(MCOB)<-"integrated"
+MCOB <- ScaleData(MCOB, verbose = FALSE)
+MCOB <- RunPCA(MCOB, npcs = 30, verbose = FALSE)
+MCOB <- RunTSNE(MCOB, reduction = "pca", dims = 1:20)
+MCOB <- FindNeighbors(MCOB, reduction = "pca", dims = 1:20)
+MCOB <- FindClusters(MCOB, resolution = 0.3)
+MCOB.t<-MCOB
+new.cluster.ids<- c("MC1","SMC","OB1","PMC","MC2","OB2") 
+names(x=new.cluster.ids) <-levels(x=MCOB.t)
+MCOB.t<-RenameIdents(object = MCOB.t,new.cluster.ids)
+DimPlot(object = MCOB.t, reduction = 'tsne',label = TRUE, pt.size = 1, label.size = 6)+ NoLegend()+FontSize(x.text = 15,y.text = 15,x.title=24,y.title = 24)
+# Figure 7D
+features <- c("Twist1","Erg","Thy1","Mki67","Pcna","Top2a","Sp7","Bglap2","Spp1","Mmp13","Ostn","Pdzrn4")
+DotPlot(MCOB.t, features = features, cluster.idents = TRUE) + RotatedAxis()
+```
+
+
+# Figure 1C: Split tSNE plots showing separated cells from P10 mouse coronal and lambdoid suture, respectively. 
+```{r}
+DimPlot(suture.combined,reduction="tsne",split.by = "orig.ident", pt.size = 0.6)
+```
+
+# Figure S5: Feature plot of cells that express skeletal stem/progenitor cell genes
+
+```{r}
+VlnPlot(object = suture.combined, features = c("Axin2"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Gli1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Prrx1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Ctsk"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Ddr2"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Twist1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Erg"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Thy1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Six1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Six2"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Grem1"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Lepr"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Pthlh"), ncol=2,pt.size = 0.5)
+VlnPlot(object = suture.combined, features = c("Bmpr1a"), ncol=2,pt.size = 0.5)
+```
+
