@@ -1,0 +1,160 @@
+---
+title: "Paper_figures_Axin2_suture"
+subtitle: "Fig.1B"
+author: "Zhirui Jiang"
+date: "2023-6-22"
+output: 
+  html_document: 
+    fig_width: 12
+    fig_height: 9
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+library(Seurat)
+library(tidyverse)
+library(rJava)
+devtools::install_github('colearendt/xlsx')
+library(xlsx)
+library(ggplot2)
+```
+
+# Fig. 1B.Pathway enrichment analysis of differentially expressed genes (DEGs) in SC cluster exhibited by Circular Histogram showing the top 20 enriched KEGG pathways of genes expressed and by Bar graph showing selected pathways known related to stem cell regulation from the top 100 enriched KEGG pathways.  
+
+# Draw circle plot for KEGG pathway enrichment analysis
+```{r}
+testseu = readRDS("Axin2+_scRNA-seq_combined.rds")
+# Idents(testseu) <- "anno_new"
+```
+
+```{r}
+### Find DEGs 
+marker_celltype <- FindAllMarkers(
+  testseu,
+  only.pos = TRUE,
+  min.pct =  0.25,
+  min.diff.pct = 0.25
+)
+
+# filter
+marker_celltype = marker_celltype %>% filter(p_val_adj < 0.05)
+marker_celltype$d = marker_celltype$pct.1 - marker_celltype$pct.2
+marker_celltype = marker_celltype %>% filter(d > 0.2)
+marker_celltype = marker_celltype %>% arrange(cluster, desc(avg_log2FC))
+marker_celltype = as.data.frame(marker_celltype)
+write.xlsx(
+  marker_celltype,
+  file = "markers_log2fc0.25_padj0.05_pctd0.2.xlsx",
+  row.names = F,
+  col.names = T
+)
+```
+
+```{r}
+### enrichment analysis
+library(clusterProfiler)
+library(org.Mm.eg.db)
+R.utils::setOption("clusterProfiler.download.method", "auto") #https://github.com/YuLab-SMU/clusterProfiler/issues/256
+
+source("syEnrich.R")
+syEnrich(marker_celltype, outpath = "markers_log2fc0.25_padj0.05_pctd0.2")
+
+```
+
+```{r}
+### find one cell type
+kegg.res = read.xlsx(
+  "markers_log2fc0.25_padj0.05_pctd0.2.KEGG.xls",
+  sheetIndex = 1,
+  as.data.frame = T,
+  header = T
+)
+kegg.res = kegg.res %>% filter(p.adjust < 0.05)
+kegg.res = kegg.res %>% filter(cluster == "SC")
+
+# import kegg_info
+kegg_info = read.xlsx("kegg_info.xlsx", sheetIndex = 1, startRow = 3)
+kegg_info = kegg_info[, c("ID", "Pathway", "big.annotion")]
+
+# merge
+kegg.res$ID = str_replace(kegg.res$ID, "mmu", "")
+kegg.res = kegg.res %>% inner_join(kegg_info, by = "ID")
+
+# top20 term
+kegg.res = kegg.res %>% arrange(p.adjust)
+kegg.res = head(kegg.res, 20)
+
+saveRDS(kegg.res, file = "kegg.res.rds")
+
+write.table(
+  kegg.res,
+  file = "kegg.res.txt",
+  quote = F,
+  sep = "\t",
+  row.names = F,
+  col.names = T
+)
+write.xlsx(kegg.res,
+           file = "kegg.res.xlsx",
+           col.names = T,
+           row.names = F)
+
+```
+
+```{r}
+### use kegg_loop as function
+source("kegg_loop.R")
+kegg_loop(enrich.res = kegg.res, filename = "SC_kegg_id")
+```
+
+
+## Bar plot showing selected KEGG or Reactome pathways among top 100
+# Submit DEGs to DAVID https://davidbioinformatics.nih.gov/tools.jsp and download KEGG and Reactome results as .txt
+```{r}
+# KEGG/GO
+
+dat = read.table("cluster4_KEGG.txt", sep='\t', header=T)
+
+#order in counts
+dat = dat[order(dat$Count,decreasing=T),]
+nrows = nrow(dat)
+
+#find p<0.05 GO term
+dat = dat[which(dat$PValue < 0.05),]
+
+#show top 20
+show = dat[1:20,]
+show = dat[c(4,14,15,18,21,24,45,62),]
+
+#draw plot
+gg = ggplot(show, aes(x=Term,y=Count,fill=PValue)) + geom_bar(width=0.8,stat="identity") + coord_flip() + scale_fill_gradient(low = "red", high = "green") + scale_x_discrete(limits=show$Term[8:1])
+pdf("barplot_KEGG.pdf", width=12, height=6)
+gg + theme(axis.text.y = element_text(size=20),axis.title=element_text(size=20),legend.text=element_text(size=20))
+dev.off()
+
+```
+
+```{r}
+# Reactome
+
+dat = read.table("cluster4_Reactome.txt", sep='\t', header=T)
+
+#order in counts
+dat = dat[order(dat$Count,decreasing=T),]
+nrows = nrow(dat)
+
+#find p<0.05 GO term
+dat = dat[which(dat$PValue < 0.05),]
+
+#show top 20
+show = dat[1:20,]
+show = dat[c(4,7,14,25,26,39,43,48,51,67,82,83,84,85),]
+
+#draw plot
+gg = ggplot(show, aes(x=Term,y=Count,fill=PValue)) + geom_bar(width=0.8,stat="identity") + coord_flip() + scale_fill_gradient(low = "red", high = "green") + scale_x_discrete(limits=show$Term[14:1])
+pdf("barplot_Reactome.pdf", width=12, height=6)
+gg + theme(axis.text.y = element_text(size=20),axis.title=element_text(size=20),legend.text=element_text(size=20))
+dev.off()
+```
+
+
