@@ -131,8 +131,8 @@ full_results <- tibble::rownames_to_column(full_results,"ID")
 ## Make sure you have ggplot2 loaded
 library(ggplot2)
 library(ggrepel)
-p_cutoff <- 0.05
-fc_cutoff <- 1
+p_cutoff <- 0.01
+fc_cutoff <- 0.5
 topN <- 100
 
 full_results %>% 
@@ -142,16 +142,16 @@ full_results %>%
 
 
 # We can also filter according to p-value (adjusted) and fold-change cut-offs
-p_cutoff <- 0.05
-fc_cutoff <- 1
-filter(full_results, P.Value < 0.05)
+p_cutoff <- 0.01
+fc_cutoff <- 0.5
+filter(full_results, P.Value < 0.01)
 
 # These results can be exported with the write_csv function
 library(readr)
 write_csv(full_results, "full_results.csv")
 
-filtered_results <- filter(full_results, P.Value < 0.05)
-write_csv(filtered_results, "filtered_results_p_0.05_FC_1.csv")
+filtered_results <- filter(full_results, P.Value < 0.01)
+write_csv(filtered_results, "filtered_results_p_0.01_FC_0.5.csv")
 
 
 
@@ -173,8 +173,8 @@ pheatmap(gene_matrix,
          scale = "row")
 
 # sort filtered results in descending order
-up = filtered_results[ which(filtered_results$P.Value < 0.05 & filtered_results$logFC > 0),]
-down = filtered_results[ which(filtered_results$P.Value < 0.05 & filtered_results$logFC < 0),]
+up = filtered_results[ which(filtered_results$P.Value < 0.01 & filtered_results$logFC > 0.5),]
+down = filtered_results[ which(filtered_results$P.Value < 0.01 & filtered_results$logFC < -0.5),]
 uptop10 = top_n(up, 10, logFC)
 downtop10 = top_n(down, 10, -logFC)
 sig = rbind(uptop10, downtop10)

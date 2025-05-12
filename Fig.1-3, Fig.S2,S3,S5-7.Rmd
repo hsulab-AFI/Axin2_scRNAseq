@@ -218,7 +218,7 @@ StackedVlnPlot(obj = Axin2.combined, features = features6)
 
 # Fig.2. Characterization of SuSC population by reclustering analysis of skeletogenic cell lineage in Axin2-expressing mesenchymal cells.  
 ```{r}
-# Fig.2A
+# Fig.2A and 2E
 Axin2.sub<-subset(x = Axin2.combined, idents = c("NEUT1","NEUT2","MONO","MP","MC"), invert = TRUE)
 DefaultAssay(Axin2.sub)<-"integrated"
 Axin2.sub <- ScaleData(Axin2.sub, verbose = FALSE)
@@ -231,13 +231,18 @@ new.cluster.ids<- c("SuSC","OB-I","OB-II","OP")
 names(x=new.cluster.ids) <-levels(x=Axin2.sub)
 Axin2.sub<-RenameIdents(object = Axin2.sub,new.cluster.ids)
 DimPlot(object = Axin2.sub, reduction = 'umap',label = TRUE, pt.size = 1, label.size = 6)+ NoLegend()+FontSize(x.text = 15,y.text = 15,x.title=20,y.title = 20)
-DefaultAssay(Axin2.sub) <- "RNA"
-features <- c("Msx1","Thy1","Msx2","Mgp","Sparc","Col1a1","Bglap","Sp7","Ibsp","Mmp13","Vdr","Spp1","Cd14","Ptprc","Mmp9")
-DotPlot(Axin2.sub, features = features) + RotatedAxis()+
-  theme(axis.text=element_text(size=20),
-        axis.title=element_text(size=20))
 
-# Fig.2E
+# Fig.2F
+DefaultAssay(Axin2.sub) <- "RNA"
+FeaturePlot(Axin2.sub, feature=c("Bglap","Ibsp","Sp7"),reduction = "umap", pt.size = 0.0001, max.cutoff = 5,min.cutoff = 0, cols = c("#FFEFD5","#E6E6FA","#87CEFA","#6495ED","#4169E1","#0000CD","#000080"), label=FALSE,ncol=3)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+FeaturePlot(Axin2.sub, feature=c("Bglap","Ibsp","Sp7","Spp1"),reduction = "umap", pt.size = 0.0001, max.cutoff = 5,min.cutoff = 0, cols = pal, label=FALSE)+  
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16))
+
+
+# Fig.2G
 featuresCellSurfaceSuSC <- c("Ptn","Tnn","Apoe","Gpc3","Fzd1","Sulf2","Egfr","Thy1","Epha4","Cdon","Ramp2","Lpl","Icam1","Thbd","Lrig3","Itga8","Nid2","Bace2","Pxdn","Scube2","Sema6c")
 StackedVlnPlot(obj = Axin2.sub, features = CellSurfaceSuSC) + 
   theme(axis.text=element_text(size=18),axis.title=element_text(size=20))
@@ -251,7 +256,7 @@ VlnPlot(object = Axin2.sub, features = c("Msx1"),   ncol=1, log = TRUE, pt.size 
 VlnPlot(object = Axin2.sub, features = c("Msx2"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Bmper"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Bmp4"),   ncol=1, log = TRUE, pt.size = 0.5)
-VlnPlot(object = Axin2.sub, features = c("Acvr1"),   ncol=1, log = TRUE, pt.size = 0.5)
+VlnPlot(object = Axin2.sub, features = c("Acvrl1"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Rab23"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Thy1"),   ncol=1, log = TRUE, pt.size = 0.5)
 
@@ -299,6 +304,8 @@ VlnPlot(object = Axin2.sub, features = c("Mmp9"),   ncol=1, log = TRUE, pt.size 
 VlnPlot(object = Axin2.sub, features = c("Mpo"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Elane"),   ncol=1, log = TRUE, pt.size = 0.5)
 VlnPlot(object = Axin2.sub, features = c("Cd14"),   ncol=1, log = TRUE, pt.size = 0.5)
+VlnPlot(object = Axin2.sub, features = c("Cybb"),   ncol=1, log = TRUE, pt.size = 0.5)
+
 ```
 
 
